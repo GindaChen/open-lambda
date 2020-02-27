@@ -159,6 +159,7 @@ func (sb *safeSandbox) HttpProxy() (p *httputil.ReverseProxy, err error) {
 
 // fork (as a private method) doesn't cleanup parent sb if fork fails
 func (sb *safeSandbox) fork(dst Sandbox) (err error) {
+	log.Printf("func (sb *safeSandbox) fork(dst Sandbox) (err error) {")
 	sb.printf("fork(SB %v)", dst.ID())
 	t := common.T0("fork()")
 	defer t.T1()
@@ -169,11 +170,21 @@ func (sb *safeSandbox) fork(dst Sandbox) (err error) {
 		return DEAD_SANDBOX
 	}
 
+	log.Printf("sb.Sandbox.fork(dst) -- start")
+	log.Printf("[DEBUG] sb.Sandbox = %v, %s", sb.Sandbox, sb.Sandbox)
+	log.Printf("[DEBUG] sb.Sandbox.fork = %v, %s", sb.Sandbox.fork, sb.Sandbox.fork)
+	log.Printf("[DEBUG] dst = %v, %s", dst, dst)
 	if err := sb.Sandbox.fork(dst); err != nil {
+		log.Printf("[DEBUG] fork failed with err: %s", err)
 		return err
 	}
+	log.Printf("sb.Sandbox.fork(dst) -- stop")
 
+	log.Printf("sb.event(EvFork) -- start")
+	log.Printf("sb.event = %v, %s", sb.event, sb.event)
+	log.Printf("EvFork = %v, %s", EvFork, EvFork)
 	sb.event(EvFork)
+	log.Printf("sb.event(EvFork) -- end")
 	return nil
 }
 

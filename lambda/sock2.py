@@ -118,6 +118,7 @@ def start_container():
     # messages to the sock file.
     file_sock = tornado.netutil.bind_unix_socket(file_sock_path)
 
+    raise Exception("Ready to fork!!!!!!")
     pid = os.fork()
     assert(pid >= 0)
 

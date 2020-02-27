@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"log"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/open-lambda/open-lambda/ol/common"
 )
@@ -61,6 +63,7 @@ func sbStr(sb Sandbox) string {
 }
 
 func (pool *SOCKPool) Create(parent Sandbox, isLeaf bool, codeDir, scratchDir string, meta *SandboxMeta) (sb Sandbox, err error) {
+	log.Printf("[DEBUG] (pool *SOCKPool) Create(parent Sandbox, isLeaf bool, codeDir, scratchDir string, meta *SandboxMeta) (sb Sandbox, err error)")
 	id := fmt.Sprintf("%d", atomic.AddInt64(&nextId, 1))
 	meta = fillMetaDefaults(meta)
 	pool.printf("<%v>.Create(%v, %v, %v, %v, %v)=%s...", pool.name, sbStr(parent), isLeaf, codeDir, scratchDir, meta, id)
@@ -147,22 +150,38 @@ func (pool *SOCKPool) Create(parent Sandbox, isLeaf bool, codeDir, scratchDir st
 
 	// create new process in container (fresh, or forked from parent)
 	if parent != nil {
+		log.Printf("[DEBUG] create new process in container (fresh, or forked from parent) -- if")
+		log.Printf("[DEBUG] fork-proc -- start")
+		log.Printf("[DEBUG] parent = %v; %s", parent, parent)
+		log.Printf("[DEBUG] type(parent)=%v", reflect.TypeOf(parent))
+		log.Printf("[DEBUG] parent = %v; %s", parent, parent)
+		log.Printf("[DEBUG] parent.fork = %v; %s", parent.fork, parent.fork)
 		t2 := t.T0("fork-proc")
 		if err := parent.fork(c); err != nil {
 			pool.printf("parent.fork returned %v", err)
 			return nil, FORK_FAILED
 		}
+		log.Printf("[DEBUG] Parent fork return no error")
 		cSock.parent = parent
 		t2.T1()
+		log.Printf("[DEBUG] fork-proc -- end")
 	} else {
+		log.Printf("[DEBUG] create new process in container (fresh, or forked from parent) -- else")
+		log.Printf("[DEBUG] fresh-proc -- start")
 		t2 := t.T0("fresh-proc")
 		if err := cSock.freshProc(); err != nil {
 			return nil, err
 		}
+		log.Printf("[DEBUG] cSock.freshProc() return no error")
 		t2.T1()
+		log.Printf("[DEBUG] fresh-proc -- end")
 	}
-
+	log.Printf("safe.startNotifyingListeners(pool.eventHandlers) -- strat")
+	time.Sleep(1000 * time.Millisecond)
 	safe.startNotifyingListeners(pool.eventHandlers)
+	log.Printf("safe.startNotifyingListeners(pool.eventHandlers) -- over")
+	log.Printf("SOCK.Create -- return")
+
 	return c, nil
 }
 

@@ -220,8 +220,10 @@ func checkConf() error {
 
 	// check proc number limit. if proc num == 1, then any fork will fail.
 	// TODO: (Discussion) what is the proc num we shall set as a hard lower bound?
-	if Conf.Limits.Procs < 10 {
-		return fmt.Errorf("config.json: setting limits.procs too low (limits.procs = %v) that os.fork() will guaranteed to fail.", Conf.Limits.Procs)
+	defaultProcsLowerLimit := 1
+	if Conf.Limits.Procs < defaultProcsLowerLimit {
+		return fmt.Errorf("config.json: setting limits.procs too low (limits.procs = %v < %v) that os.fork() will guaranteed to fail.",
+			defaultProcsLowerLimit, Conf.Limits.Procs)
 	}
 
 	return nil
