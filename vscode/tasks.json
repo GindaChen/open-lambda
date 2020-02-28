@@ -1,0 +1,18 @@
+{
+	"version": "2.0.0",	
+	"type": "shell",	
+	"echoCommand": true,
+	"tasks": [
+		{
+			"label": "olbuild",
+            "command": "go build -mod vendor -gcflags=\"all=-N -l\" -o ol",
+            "options": {
+                "cwd": "/root/open-lambda/src",
+            },
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},		
+	]
+}
