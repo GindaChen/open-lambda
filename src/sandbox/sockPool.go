@@ -156,11 +156,18 @@ func (pool *SOCKPool) Create(parent Sandbox, isLeaf bool, codeDir, scratchDir st
 		log.Printf("[DEBUG] type(parent)=%v", reflect.TypeOf(parent))
 		log.Printf("[DEBUG] parent = %v; %s", parent, parent)
 		log.Printf("[DEBUG] parent.fork = %v; %s", parent.fork, parent.fork)
+		// var rLimit syscall.Rlimit
+		// err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+		// if err != nil {
+		// 	log.Printf("[DEBUG] Error Getting Rlimit", err)
+		// }
 		t2 := t.T0("fork-proc")
 		if err := parent.fork(c); err != nil {
-			pool.printf("parent.fork returned %v", err)
+			pool.printf("[DEBUG] parent.fork returned %v", err)
 			return nil, FORK_FAILED
 		}
+		log.Printf("[DEBUG] Parent fork error")
+		return nil, FORK_FAILED
 		log.Printf("[DEBUG] Parent fork return no error")
 		cSock.parent = parent
 		t2.T1()
@@ -170,6 +177,7 @@ func (pool *SOCKPool) Create(parent Sandbox, isLeaf bool, codeDir, scratchDir st
 		log.Printf("[DEBUG] fresh-proc -- start")
 		t2 := t.T0("fresh-proc")
 		if err := cSock.freshProc(); err != nil {
+			pool.printf("[DEBUG] freshProc returned %s", err)
 			return nil, err
 		}
 		log.Printf("[DEBUG] cSock.freshProc() return no error")

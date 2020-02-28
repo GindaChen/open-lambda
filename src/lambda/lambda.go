@@ -609,19 +609,23 @@ func (linst *LambdaInstance) Task() {
 			}
 		}
 
+		f.printf("[DEBUG] lambda.go Going before Create()")
+
 		// if we don't already have a Sandbox, create one, and
 		// HTTP proxy over the channel
 		if sb == nil {
 			sb = nil
 			if f.lmgr.ImportCache != nil {
 				scratchDir := f.lmgr.scratchDirs.Make(f.name)
-
+				f.printf("[DEBUG] lambda.go::f.lmgr.ImportCache.Create() -- start")
 				// we don't specify parent SB, because ImportCache.Create chooses it for us
 				sb, err = f.lmgr.ImportCache.Create(f.lmgr.sbPool, true, linst.codeDir, scratchDir, linst.meta)
 				if err != nil {
+					f.printf("[DEBUG] lambda.go::f.lmgr.ImportCache.Create() -- error: %s", err)
 					f.printf("failed to get Sandbox from import cache")
 					sb = nil
 				}
+				f.printf("[DEBUG] lambda.go::f.lmgr.ImportCache.Create() -- return without error")
 			}
 
 			// import cache is either disabled or it failed

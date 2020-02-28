@@ -178,6 +178,7 @@ func (sb *safeSandbox) fork(dst Sandbox) (err error) {
 		log.Printf("[DEBUG] fork failed with err: %s", err)
 		return err
 	}
+	log.Printf("[DEBUG] fork no error return.")
 	log.Printf("sb.Sandbox.fork(dst) -- stop")
 
 	log.Printf("sb.event(EvFork) -- start")

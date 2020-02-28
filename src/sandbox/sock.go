@@ -83,6 +83,7 @@ func (c *SOCKContainer) HttpProxy() (p *httputil.ReverseProxy, err error) {
 
 func (c *SOCKContainer) freshProc() (err error) {
 	// get FDs to cgroups
+	log.Printf("[DEBUG] Enter freshProc()")
 	cgFiles := make([]*os.File, len(cgroupList))
 	for i, name := range cgroupList {
 		path := c.cg.Path(name, "tasks")
@@ -93,7 +94,7 @@ func (c *SOCKContainer) freshProc() (err error) {
 		cgFiles[i] = os.NewFile(uintptr(fd), path)
 		defer cgFiles[i].Close()
 	}
-
+	log.Printf("[DEBUG] python3 -u sock2.py /host/bootstrap.py")
 	cmd := exec.Command(
 		"chroot", c.containerRootDir, "python3", "-u",
 		"sock2.py", "/host/bootstrap.py", strconv.Itoa(len(cgFiles)),
@@ -106,12 +107,15 @@ func (c *SOCKContainer) freshProc() (err error) {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Start(); err != nil {
+		log.Printf("[DEBUG] Return freshProc() with error: %s", err)
 		return err
 	}
 
 	// sock2.py forks off a process in a new container, so this
 	// won't block long
-	return cmd.Wait()
+	ret := cmd.Wait()
+	log.Printf("[DEBUG] freshProc(). cmd.Wait() = %v", ret)
+	return ret
 }
 
 func (c *SOCKContainer) populateRoot() (err error) {
