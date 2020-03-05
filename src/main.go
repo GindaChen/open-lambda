@@ -67,9 +67,8 @@ func getOlWorkerProc(ctx *cli.Context) (int, error) {
 		if len(v) == 0 {
 			continue
 		}
-		pid, err := strconv.Atoi(v)
+		pid, err := strconv.Atoi(strings.Trim(v, " "))
 		if err != nil {
-			fmt.Printf("[DEBUG] %s", err)
 			return -1, err
 		}
 		if pid != this {
@@ -104,7 +103,7 @@ func getOlNumSB(olPath string) int {
 	return len(files)
 }
 
-func getKillTarget(olPath string) (int, error) {
+func getKillTarget(olPath string, createIfNotExist bool) (int, error) {
 	// create killPath if not exist.
 	// return the number of SB needs to be killed initially.
 
@@ -123,6 +122,8 @@ func getKillTarget(olPath string) (int, error) {
 			return -1, err
 		}
 		return numSB, err
+	} else {
+		return -1, fmt.Errorf("worker.kill does not exist")
 	}
 
 	// killPath not exist, create log file and store the number of sandboxes to kill
@@ -264,6 +265,13 @@ func status(ctx *cli.Context) error {
 		return err
 	}
 
+	if totalNum, err := getKillTarget(olPath, false); err == nil {
+		if currNum := getOlNumSB(olPath); currNum > 0 {
+			fmt.Printf("Worker kill progress: %v/%v\n", currNum, totalNum)
+			return nil
+		}
+	}
+
 	url := fmt.Sprintf("http://localhost:%s/status", common.Conf.Worker_port)
 	response, err := http.Get(url)
 	if err != nil {
@@ -393,14 +401,15 @@ func worker(ctx *cli.Context) error {
 	}
 	fmt.Printf("using existing OL directory at %s\n", olPath)
 
-	confPath, err := filepath.Abs(ctx.String("file"))
-	if err != nil {
-		return fmt.Errorf("load config file with error: %s", err)
-	}
+	confPath := ctx.String("file")
 	if confPath == "" {
 		confPath = filepath.Join(olPath, "config.json")
 	}
 	fmt.Printf("using config file at %s\n", confPath)
+	confPath, err = filepath.Abs(confPath)
+	if err != nil {
+		return fmt.Errorf("load config file with error: %s", err)
+	}
 
 	overrides := ctx.String("options")
 	if overrides != "" {
@@ -414,6 +423,15 @@ func worker(ctx *cli.Context) error {
 
 	if err := common.LoadConf(confPath); err != nil {
 		return err
+	}
+
+	pidPath := filepath.Join(common.Conf.Worker_dir, "worker.pid")
+	if _, err := os.Stat(pidPath); err == nil {
+		pid, _ := getOlWorkerProc(ctx)
+		if pid > 0 {
+			return fmt.Errorf("previous worker is running: %v", pid)
+		}
+		return fmt.Errorf("previous worker may be running (%s already exists)", pidPath)
 	}
 
 	// should we run as a background process?
@@ -555,61 +573,27 @@ func kill(ctx *cli.Context) error {
 	}
 
 	// write kill log with the number of sb in scratch if not exist
-	totalSB, err := getKillTarget(olPath)
+	totalSB, err := getKillTarget(olPath, true)
 	if err != nil {
 		fmt.Printf("Get kill log error: %s. Proceed without showing kill progress.", err)
 	}
 
-	// Kill the worker asynchronously.
-	async := ctx.Bool("async")
-	if async {
-		p.Signal(syscall.Signal(0))
-		fmt.Printf("Send kill signal to the worker: %v\n", pid)
-		numSB, err := getKillTarget(olPath)
-		if err != nil {
-			return err
-		}
-		remainSB := totalSB - numSB
-		fmt.Printf("Progress: %v/%v\n", remainSB, totalSB)
-		return nil
-	}
-
-	for i := 0; i < 300; i++ {
+	for i := 0; ; i++ {
 		err := p.Signal(syscall.Signal(0))
 		if err != nil {
 			return nil // good, process must have stopped
 		}
 		time.Sleep(100 * time.Millisecond)
-		numSB, err := getKillTarget(olPath)
-		if numSB < 0 {
-			fmt.Printf("[DEBUG] numSB=%v with error=%s\n", numSB, err)
-		}
-
-		if err == nil {
-			remainSB := totalSB - numSB
-			fmt.Printf("Progress: %v/%v\n", remainSB, totalSB)
+		if i%10 == 0 {
+			numSB, err := getKillTarget(olPath, false)
+			if err == nil {
+				remainSB := totalSB - numSB
+				fmt.Printf("Progress: %v/%v\n", remainSB, totalSB)
+			}
 		}
 	}
 
 	return fmt.Errorf("worker didn't stop after 30s")
-}
-
-// Simple diagnose tool. We shall expand this in the future.
-func diagnose(ctx *cli.Context) error {
-	pid, err := getOlWorkerProc(ctx)
-
-	if err != nil && pid == -1 {
-		fmt.Printf("Diagnose error: %s\n", err)
-		return err
-	}
-
-	if pid == 0 {
-		fmt.Printf("No ol worker proc running.\n")
-		return nil
-	}
-
-	fmt.Printf("Worker proc running: %v\n", pid)
-	return nil
 }
 
 // main runs the admin tool
@@ -654,7 +638,7 @@ OPTIONS:
 		cli.Command{
 			Name:        "worker",
 			Usage:       "Start one OL server",
-			UsageText:   "ol worker [--path=NAME] [--detach]",
+			UsageText:   "ol worker [--path=NAME] [--detach] [--file=CONFIGPATH]",
 			Description: "Start a lambda server.",
 			Flags: []cli.Flag{
 				pathFlag,
@@ -682,23 +666,11 @@ OPTIONS:
 			Action:      status,
 		},
 		cli.Command{
-			Name:        "diagnose",
-			Usage:       "diagnose worker status",
-			UsageText:   "ol diagnose [--path=NAME]",
-			Description: "Diagnose the current stataus of the worker, possibly specified by the path.",
-			Flags:       []cli.Flag{pathFlag},
-			Action:      diagnose,
-		},
-		cli.Command{
 			Name:      "kill",
 			Usage:     "Kill containers and processes in a cluster",
-			UsageText: "ol kill [--path=NAME] [--async]",
+			UsageText: "ol kill [--path=NAME]",
 			Flags: []cli.Flag{
 				pathFlag,
-				cli.BoolFlag{
-					Name:  "async, a",
-					Usage: "Send SIGNAL0 to kill the worker. Use `ol status` to check the kill progress.",
-				},
 			},
 			Action: kill,
 		},
