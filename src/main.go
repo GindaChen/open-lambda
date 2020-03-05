@@ -110,7 +110,9 @@ func getKillTarget(olPath string, createIfNotExist bool) (int, error) {
 	// if killPath exist, return the value
 	killPath := filepath.Join(common.Conf.Worker_dir, "worker.kill")
 
-	if _, err := os.Stat(killPath); err == nil {
+	_, err := os.Stat(killPath)
+
+	if err == nil {
 
 		s, err := ioutil.ReadFile(killPath)
 		if err != nil {
@@ -123,11 +125,13 @@ func getKillTarget(olPath string, createIfNotExist bool) (int, error) {
 		}
 		return numSB, err
 	} else {
-		return -1, fmt.Errorf("worker.kill does not exist")
+		if !os.IsNotExist(err){
+			return -1, fmt.Errorf("worker.kill does not exist")
+		}
 	}
 
 	// killPath not exist, create log file and store the number of sandboxes to kill
-	_, err := os.Create(killPath)
+	_, err = os.Create(killPath)
 	if err != nil {
 		return -1, err
 	}
@@ -575,7 +579,7 @@ func kill(ctx *cli.Context) error {
 	// write kill log with the number of sb in scratch if not exist
 	totalSB, err := getKillTarget(olPath, true)
 	if err != nil {
-		fmt.Printf("Get kill log error: %s. Proceed without showing kill progress.", err)
+		fmt.Printf("Get kill log error: %s. Proceed without showing kill progress.\n", err)
 	}
 
 	for i := 0; ; i++ {
