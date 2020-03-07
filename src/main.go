@@ -377,7 +377,7 @@ func kill(ctx *cli.Context) error {
 		fmt.Printf("%s\n", err.Error())
 		fmt.Printf("Failed to kill process with PID %d.  May require manual cleanup.\n", pid)
 	}
-	
+
 	for i := 0; ; i++ {
 		err := p.Signal(syscall.Signal(0))
 		if err != nil {
@@ -462,9 +462,7 @@ OPTIONS:
 			Name:      "kill",
 			Usage:     "Kill containers and processes in a cluster",
 			UsageText: "ol kill [--path=NAME]",
-			Flags: []cli.Flag{
-				pathFlag,
-			},
+			Flags: []cli.Flag{pathFlag,},
 			Action: kill,
 		},
 	}
