@@ -33,152 +33,12 @@ func getOlPath(ctx *cli.Context) (string, error) {
 	return filepath.Abs(olPath)
 }
 
-func getOlWorkerProc(ctx *cli.Context) (int, error) {
-	// Check all running ol procs, substracting "this" one.
-	// Return:
-	//	pid:
-	// 		Return the process id if one proc is working.
-	//		Return 0 if no proc is working.
-	//		Return < 0 as error code.
-	//	err:
-	//		Error message of all kind.
-
-	// Assumption:
-	//	1. At most one ol worker is running in the system.
-	//  2. This process is the only other ol admin process that could be running.
-	// TODO: Assumption 2 is too strong as there could be many `ol status` running.
-
-	// Get the running pid whose program name is `ol` (at least one - this one)
-	out, err := exec.Command("ps", "-C", "ol", "-o", "pid=").Output()
-	if err != nil {
-		return -1, err
-	}
-	if len(out) == 0 {
-		err := fmt.Errorf("No output from commanad: ps -C ol -i pid=")
-		return -1, err
-	}
-
-	procStr := strings.Split(strings.TrimSpace(strings.Trim(string(out), "\n")), "\n")
-
-	// Maps the pid strings to int, except for `this` process
-	this := os.Getpid()
-	procs := make([]int, 0, len(procStr))
-	for _, v := range procStr {
-		if len(v) == 0 {
-			continue
-		}
-		pid, err := strconv.Atoi(strings.Trim(v, " "))
-		if err != nil {
-			return -1, err
-		}
-		if pid != this {
-			procs = append(procs, pid)
-		}
-	}
-
-	// Assert there are at most one proc running then return if we have one.
-	// TODO: Multiple `ol status` could run in parallel.
-	// 		 Should distinguish these worker from the ol worker process.
-	if len(procs) > 1 {
-		return -2, fmt.Errorf("More than one ol process is running: %s", procs)
-	}
-
-	// No ol worker. Return successfully with pid = 0 (no worker).
-	if len(procs) == 0 {
-		return 0, nil
-	}
-
-	// Return the ol worker pid.
-	return procs[0], nil
-}
-
-func getOlNumSB(olPath string) int {
-	// Return the sandbox in the worker/scratch to estimate the progress of kill
-	// Error with no such dir returns -1
-	scratch := filepath.Join(olPath, "worker", "scratch")
-	files, err := ioutil.ReadDir(scratch)
-	if err != nil {
-		return -1
-	}
-	return len(files)
-}
-
-func getKillTarget(olPath string, createIfNotExist bool) (int, error) {
-	// create killPath if not exist.
-	// return the number of SB needs to be killed initially.
-
-	// if killPath exist, return the value
-	killPath := filepath.Join(common.Conf.Worker_dir, "worker.kill")
-
-	_, err := os.Stat(killPath)
-
-	if err == nil {
-
-		s, err := ioutil.ReadFile(killPath)
-		if err != nil {
-			return -1, err
-		}
-
-		numSB, err := strconv.Atoi(string(s))
-		if err != nil {
-			return -1, err
-		}
-		return numSB, err
-	} else {
-		if !os.IsNotExist(err){
-			return -1, fmt.Errorf("worker.kill does not exist")
-		}
-	}
-
-	// killPath not exist, create log file and store the number of sandboxes to kill
-	_, err = os.Create(killPath)
-	if err != nil {
-		return -1, err
-	}
-
-	numSB := getOlNumSB(olPath)
-	if numSB < 0 {
-		// No such directory exist or no numSB.
-		return 0, nil
-	}
-	if err := ioutil.WriteFile(killPath, []byte(strconv.Itoa(numSB)), 0644); err != nil {
-		return -1, err
-	}
-	return numSB, nil
-}
 
 func initOLDir(olPath string) (err error) {
-	// Add a temporary lock for the init ol dir
 	fmt.Printf("Init OL dir at %v\n", olPath)
 	if err := os.Mkdir(olPath, 0700); err != nil {
 		return err
 	}
-
-	// Add a lock file and delete it once initOLDir is done.
-	lockPath := filepath.Join(olPath, "lock")
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
-		return fmt.Errorf("%v is creating by another process (lock file %v exists)", olPath, lockPath)
-	}
-
-	f, err := os.Create(lockPath)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if _, err := os.Stat(lockPath); os.IsNotExist(err) {
-			// Lock file already removed, possibly manually
-			return
-		}
-		err = f.Close()
-		if err != nil {
-			return
-		}
-		err := os.Remove(lockPath)
-		if err != nil {
-			return
-		}
-	}()
 
 	if err := common.LoadDefaults(olPath); err != nil {
 		return err
@@ -267,13 +127,6 @@ func status(ctx *cli.Context) error {
 	err = common.LoadConf(filepath.Join(olPath, "config.json"))
 	if err != nil {
 		return err
-	}
-
-	if totalNum, err := getKillTarget(olPath, false); err == nil {
-		if currNum := getOlNumSB(olPath); currNum > 0 {
-			fmt.Printf("Worker kill progress: %v/%v\n", currNum, totalNum)
-			return nil
-		}
 	}
 
 	url := fmt.Sprintf("http://localhost:%s/status", common.Conf.Worker_port)
@@ -385,36 +238,6 @@ func worker(ctx *cli.Context) error {
 		}
 	}
 
-	// if `lock` file exist, a `ol new` is running.
-	lockPath := filepath.Join(olPath, "lock")
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
-		// Check if it is created by another running proc.
-		// If not, then we have a dangling lock file.
-		pid, err := getOlWorkerProc(ctx)
-		if pid > 0 {
-			return fmt.Errorf("lock file %v exists: %v is creating by another process %d", olPath, lockPath, pid)
-		}
-		if err != nil && pid == -2 {
-			// Multiple process running.
-			return fmt.Errorf("lock file %v exists: %v is creating by another process", olPath, lockPath)
-		}
-		if err != nil {
-			return fmt.Errorf("Dangling lock file %v exists: %v is supposed to be creating by another process, but that process is not found", olPath, lockPath)
-		}
-
-	}
-	fmt.Printf("using existing OL directory at %s\n", olPath)
-
-	confPath := ctx.String("file")
-	if confPath == "" {
-		confPath = filepath.Join(olPath, "config.json")
-	}
-	fmt.Printf("using config file at %s\n", confPath)
-	confPath, err = filepath.Abs(confPath)
-	if err != nil {
-		return fmt.Errorf("load config file with error: %s", err)
-	}
-
 	overrides := ctx.String("options")
 	if overrides != "" {
 		overridesPath := confPath + ".overrides"
@@ -427,15 +250,6 @@ func worker(ctx *cli.Context) error {
 
 	if err := common.LoadConf(confPath); err != nil {
 		return err
-	}
-
-	pidPath := filepath.Join(common.Conf.Worker_dir, "worker.pid")
-	if _, err := os.Stat(pidPath); err == nil {
-		pid, _ := getOlWorkerProc(ctx)
-		if pid > 0 {
-			return fmt.Errorf("previous worker is running: %v", pid)
-		}
-		return fmt.Errorf("previous worker may be running (%s already exists)", pidPath)
 	}
 
 	// should we run as a background process?
@@ -531,17 +345,6 @@ func worker(ctx *cli.Context) error {
 // kill corresponds to the "kill" command of the admin tool.
 func kill(ctx *cli.Context) error {
 
-	// Check if there is running worker in the system.
-	pid, err := getOlWorkerProc(ctx)
-	if err != nil {
-		return err
-	}
-
-	if pid == 0 {
-		fmt.Printf("No worker running.\n")
-		return nil
-	}
-
 	olPath, err := getOlPath(ctx)
 	if err != nil {
 		return err
@@ -549,9 +352,7 @@ func kill(ctx *cli.Context) error {
 
 	// locate worker.pid, use it to get worker's PID
 	configPath := filepath.Join(olPath, "config.json")
-
 	if err := common.LoadConf(configPath); err != nil {
-		// If config.json cannot be found, try to see if there are any running process.
 		return err
 	}
 
@@ -560,7 +361,7 @@ func kill(ctx *cli.Context) error {
 		return err
 	}
 	pidstr := string(data)
-	pid, err = strconv.Atoi(pidstr)
+	pid, err := strconv.Atoi(pidstr)
 	if err != nil {
 		return err
 	}
@@ -588,13 +389,7 @@ func kill(ctx *cli.Context) error {
 			return nil // good, process must have stopped
 		}
 		time.Sleep(100 * time.Millisecond)
-		if i%10 == 0 {
-			numSB, err := getKillTarget(olPath, false)
-			if err == nil {
-				remainSB := totalSB - numSB
-				fmt.Printf("Progress: %v/%v\n", remainSB, totalSB)
-			}
-		}
+		// TODO: Ping the status / debug page here.
 	}
 
 	return fmt.Errorf("worker didn't stop after 30s")
@@ -645,7 +440,7 @@ OPTIONS:
 		cli.Command{
 			Name:        "worker",
 			Usage:       "Start one OL server",
-			UsageText:   "ol worker [--path=NAME] [--detach] [--file=CONFIGPATH]",
+			UsageText:   "ol worker [--path=NAME] [--detach]",
 			Description: "Start a lambda server.",
 			Flags: []cli.Flag{
 				pathFlag,
@@ -656,10 +451,6 @@ OPTIONS:
 				cli.BoolFlag{
 					Name:  "detach, d",
 					Usage: "Run worker in background",
-				},
-				cli.StringFlag{
-					Name:  "file, f",
-					Usage: "Run worker with override config.json file",
 				},
 			},
 			Action: worker,

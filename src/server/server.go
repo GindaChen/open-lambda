@@ -122,11 +122,7 @@ func Main() (err error) {
 
 		log.Printf("remove worker.pid")
 		os.Remove(pidPath)
-
-		log.Printf("remove worker.kill")
-		killPath := filepath.Join(common.Conf.Worker_dir, "worker.kill")
-		os.Remove(killPath)
-
+		
 		log.Printf("exiting")
 		os.Exit(1)
 	}()
