@@ -462,8 +462,8 @@ OPTIONS:
 			Name:      "kill",
 			Usage:     "Kill containers and processes in a cluster",
 			UsageText: "ol kill [--path=NAME]",
-			Flags: []cli.Flag{pathFlag,},
-			Action: kill,
+			Flags: 	   []cli.Flag{pathFlag},
+			Action:    kill,
 		},
 	}
 	err := app.Run(os.Args)
