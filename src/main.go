@@ -236,8 +236,11 @@ func worker(ctx *cli.Context) error {
 		if err := initOLDir(olPath); err != nil {
 			return err
 		}
+	} else {
+		fmt.Printf("using existing OL directory at %s\n", olPath)
 	}
 
+	confPath := filepath.Join(olPath, "config.json")
 	overrides := ctx.String("options")
 	if overrides != "" {
 		overridesPath := confPath + ".overrides"
@@ -344,7 +347,6 @@ func worker(ctx *cli.Context) error {
 
 // kill corresponds to the "kill" command of the admin tool.
 func kill(ctx *cli.Context) error {
-
 	olPath, err := getOlPath(ctx)
 	if err != nil {
 		return err
@@ -355,7 +357,6 @@ func kill(ctx *cli.Context) error {
 	if err := common.LoadConf(configPath); err != nil {
 		return err
 	}
-
 	data, err := ioutil.ReadFile(filepath.Join(common.Conf.Worker_dir, "worker.pid"))
 	if err != nil {
 		return err
@@ -376,13 +377,7 @@ func kill(ctx *cli.Context) error {
 		fmt.Printf("%s\n", err.Error())
 		fmt.Printf("Failed to kill process with PID %d.  May require manual cleanup.\n", pid)
 	}
-
-	// write kill log with the number of sb in scratch if not exist
-	totalSB, err := getKillTarget(olPath, true)
-	if err != nil {
-		fmt.Printf("Get kill log error: %s. Proceed without showing kill progress.\n", err)
-	}
-
+	
 	for i := 0; ; i++ {
 		err := p.Signal(syscall.Signal(0))
 		if err != nil {

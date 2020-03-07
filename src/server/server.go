@@ -122,7 +122,7 @@ func Main() (err error) {
 
 		log.Printf("remove worker.pid")
 		os.Remove(pidPath)
-		
+
 		log.Printf("exiting")
 		os.Exit(1)
 	}()
