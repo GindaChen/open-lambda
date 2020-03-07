@@ -602,6 +602,9 @@ func kill(ctx *cli.Context) error {
 
 // main runs the admin tool
 func main() {
+	// print file and linenum in log
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	if c, err := docker.NewClientFromEnv(); err != nil {
 		log.Fatal("failed to get docker client: ", err)
 	} else {
