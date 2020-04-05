@@ -21,6 +21,7 @@ const (
 	STATUS_PATH = "/status"
 	STATS_PATH  = "/stats"
 	DEBUG_PATH  = "/debug"
+	CONFIG_PATH = "/config"
 )
 
 // GetPid returns process ID, useful for making sure we're talking to the expected server
@@ -45,6 +46,16 @@ func Status(w http.ResponseWriter, r *http.Request) {
 func Stats(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Receive request to %s\n", r.URL.Path)
 	snapshot := common.SnapshotStats()
+	if b, err := json.MarshalIndent(snapshot, "", "\t"); err != nil {
+		panic(err)
+	} else {
+		w.Write(b)
+	}
+}
+
+func Configs(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Receive request to %s\n", r.URL.Path)
+	snapshot := common.Conf
 	if b, err := json.MarshalIndent(snapshot, "", "\t"); err != nil {
 		panic(err)
 	} else {
@@ -88,6 +99,7 @@ func Main() (err error) {
 	http.HandleFunc(PID_PATH, GetPid)
 	http.HandleFunc(STATUS_PATH, Status)
 	http.HandleFunc(STATS_PATH, Stats)
+	http.HandleFunc(CONFIG_PATH, Configs)
 
 	switch common.Conf.Server_mode {
 	case "lambda":

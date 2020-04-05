@@ -34,10 +34,20 @@ func getOlPath(ctx *cli.Context) (string, error) {
 }
 
 
-func initOLDir(olPath string) (err error) {
+func initOLDir(olPath string, noramdisk bool) (err error) {
 	fmt.Printf("Init OL dir at %v\n", olPath)
+
 	if err := os.Mkdir(olPath, 0700); err != nil {
 		return err
+	}
+
+	if !noramdisk {
+		// TODO: How to pass the arguments?
+		// mount -t tmpfs -o size=512m tmpfs /mnt/ramdisk
+		cmd := exec.Command("mount", "-t", "tmpfs", "-o", "size=16G", "tmpfs", olPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("Failed to mount ramdisk. %s\n", err.Error())
+		}
 	}
 
 	if err := common.LoadDefaults(olPath); err != nil {
@@ -113,7 +123,8 @@ func newOL(ctx *cli.Context) error {
 		return err
 	}
 
-	return initOLDir(olPath)
+	noramdisk := ctx.Bool("noramdisk")
+	return initOLDir(olPath, noramdisk)
 }
 
 // status corresponds to the "status" command of the admin tool.
@@ -233,7 +244,8 @@ func worker(ctx *cli.Context) error {
 	// if `./ol new` not previously run, do that init now
 	if _, err := os.Stat(olPath); os.IsNotExist(err) {
 		fmt.Printf("no OL directory found at %s\n", olPath)
-		if err := initOLDir(olPath); err != nil {
+		noramdisk := ctx.Bool("noramdisk")
+		if err := initOLDir(olPath, noramdisk); err != nil {
 			return err
 		}
 	} else {
@@ -390,6 +402,34 @@ func kill(ctx *cli.Context) error {
 	return fmt.Errorf("worker didn't stop after 30s")
 }
 
+//remove the OL path
+func clean(ctx *cli.Context) error {
+	path, err := getOlPath(ctx)
+	if err != nil {
+		return fmt.Errorf("getOlPath failed %s\n", err.Error())
+	}
+
+	if _, err := os.Stat(path); os.IsNotExist(err){
+		return fmt.Errorf("%s not exist.\n", path)
+	}
+
+	cmd := exec.Command("umount", path)
+	fmt.Printf("umount %s\n", path)
+	// TODO: Search if the path is in the mount menu
+	if err := cmd.Run(); err != nil{
+		// return 
+		// fmt.Printf("%s\n", err.Error())
+	}
+
+	cmd = exec.Command("rm", "-rf", path)
+	// fmt.Printf("rm -rf %s\n", path)
+	if err := cmd.Run(); err != nil{
+		return fmt.Errorf("Remove error %s\n", err.Error())
+	}
+
+	return nil
+}
+
 // main runs the admin tool
 func main() {
 	// print file and linenum in log
@@ -423,19 +463,26 @@ OPTIONS:
 		Name:  "path, p",
 		Usage: "Path location for OL environment",
 	}
+
 	app.Commands = []cli.Command{
 		cli.Command{
 			Name:        "new",
 			Usage:       "Create a OpenLambda environment",
-			UsageText:   "ol new [--path=PATH]",
+			UsageText:   "ol new [--path=PATH] [--noramdisk]",
 			Description: "A cluster directory of the given name will be created with internal structure initialized.",
-			Flags:       []cli.Flag{pathFlag},
+			Flags:       []cli.Flag{
+				pathFlag,
+				cli.BoolFlag{
+					Name:  "noramdisk, n",
+					Usage: "Create env not with a ramdisk",
+				},
+			},
 			Action:      newOL,
 		},
 		cli.Command{
 			Name:        "worker",
 			Usage:       "Start one OL server",
-			UsageText:   "ol worker [--path=NAME] [--detach]",
+			UsageText:   "ol worker [--path=NAME] [--detach] [--noramdisk]",
 			Description: "Start a lambda server.",
 			Flags: []cli.Flag{
 				pathFlag,
@@ -446,6 +493,11 @@ OPTIONS:
 				cli.BoolFlag{
 					Name:  "detach, d",
 					Usage: "Run worker in background",
+				},
+				cli.BoolFlag{
+					Name:  "noramdisk, n",
+					Usage: "Create env not with a ramdisk",
+
 				},
 			},
 			Action: worker,
@@ -464,6 +516,13 @@ OPTIONS:
 			UsageText: "ol kill [--path=NAME]",
 			Flags: 	   []cli.Flag{pathFlag},
 			Action:    kill,
+		},
+		cli.Command{
+			Name:      "clean",
+			Usage:     "Clean the OL directory.",
+			UsageText: "ol clean [--path=NAME]",
+			Flags: 	   []cli.Flag{pathFlag},
+			Action:    clean,
 		},
 	}
 	err := app.Run(os.Args)
