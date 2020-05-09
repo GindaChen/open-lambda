@@ -270,6 +270,7 @@ func worker(ctx *cli.Context) error {
 	// should we run as a background process?
 	detach := ctx.Bool("detach")
 
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	if detach {
 		// stdout+stderr both go to log
 		logPath := filepath.Join(olPath, "worker.out")
