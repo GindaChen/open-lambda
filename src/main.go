@@ -423,15 +423,19 @@ func clean(ctx *cli.Context) error {
 	fmt.Printf("umount -R %s\n", path)
 	// TODO: Search if the path is in the mount menu
 	if err := cmd.Run(); err != nil{
-		
-	}
 
-	cmd = exec.Command("rm", "-rf", path)
-	// fmt.Printf("rm -rf %s\n", path)
-	if err := cmd.Run(); err != nil{
-		return fmt.Errorf("Remove error %s\n", err.Error())
 	}
-
+	
+	if ctx.Bool("full"){
+		// TODO: Dangerous! rm -rf probably should not appear here. 
+		// Only if the directory is registered should we remove in this way.
+		cmd = exec.Command("rm", "-rf", path)
+		// fmt.Printf("rm -rf %s\n", path)
+		if err := cmd.Run(); err != nil{
+			return fmt.Errorf("Remove error %s\n", err.Error())
+		}
+		fmt.Printf("Removed %s\n", path)
+	}
 	return nil
 }
 
@@ -528,8 +532,11 @@ OPTIONS:
 		cli.Command{
 			Name:      "clean",
 			Usage:     "Clean the OL directory.",
-			UsageText: "ol clean [-p --path=NAME]",
-			Flags: 	   []cli.Flag{pathFlag},
+			UsageText: "ol clean [-p --path=NAME] [-f --full]",
+			Flags: 	   []cli.Flag{pathFlag, cli.BoolFlag{
+				Name:  "full, f",
+				Usage: "Fully cleanup the directory",
+			}},
 			Action:    clean,
 		},
 	}
