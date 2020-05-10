@@ -380,15 +380,20 @@ func kill(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("Kill worker process with PID %d\n", pid)
+	log.Printf("Kill worker process with PID %d\n", pid)
 	p, err := os.FindProcess(pid)
 	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-		fmt.Printf("Failed to find worker process with PID %d.  May require manual cleanup.\n", pid)
+		log.Printf("%s\n", err.Error())
+		log.Printf("Failed to find worker process with PID %d.  May require manual cleanup.\n", pid)
 	}
 	if err := p.Signal(syscall.SIGINT); err != nil {
-		fmt.Printf("%s\n", err.Error())
-		fmt.Printf("Failed to kill process with PID %d.  May require manual cleanup.\n", pid)
+		log.Printf("%s\n", err.Error())
+		log.Printf("Failed to kill process with PID %d.  May require manual cleanup.\n", pid)
+	}
+	log.Printf("Sent kill signal to the worker\n")	
+
+	if ctx.Bool("async") {
+		return nil
 	}
 
 	for i := 0; ; i++ {
@@ -414,12 +419,11 @@ func clean(ctx *cli.Context) error {
 		return fmt.Errorf("%s not exist.\n", path)
 	}
 
-	cmd := exec.Command("umount", path)
-	fmt.Printf("umount %s\n", path)
+	cmd := exec.Command("umount", "-R", path)
+	fmt.Printf("umount -R %s\n", path)
 	// TODO: Search if the path is in the mount menu
 	if err := cmd.Run(); err != nil{
-		// return 
-		// fmt.Printf("%s\n", err.Error())
+		
 	}
 
 	cmd = exec.Command("rm", "-rf", path)
@@ -464,7 +468,7 @@ OPTIONS:
 		Name:  "path, p",
 		Usage: "Path location for OL environment",
 	}
-
+	
 	app.Commands = []cli.Command{
 		cli.Command{
 			Name:        "new",
@@ -483,7 +487,7 @@ OPTIONS:
 		cli.Command{
 			Name:        "worker",
 			Usage:       "Start one OL server",
-			UsageText:   "ol worker [--path=NAME] [--detach] [--noramdisk]",
+			UsageText:   "ol worker [-p --path=NAME] [-d --detach] [-n --noramdisk]",
 			Description: "Start a lambda server.",
 			Flags: []cli.Flag{
 				pathFlag,
@@ -506,7 +510,7 @@ OPTIONS:
 		cli.Command{
 			Name:        "status",
 			Usage:       "get worker status",
-			UsageText:   "ol status [--path=NAME]",
+			UsageText:   "ol status [-p --path=NAME]",
 			Description: "If no cluster name is specified, number of containers of each cluster is printed; otherwise the connection information for all containers in the given cluster will be displayed.",
 			Flags:       []cli.Flag{pathFlag},
 			Action:      status,
@@ -514,14 +518,17 @@ OPTIONS:
 		cli.Command{
 			Name:      "kill",
 			Usage:     "Kill containers and processes in a cluster",
-			UsageText: "ol kill [--path=NAME]",
-			Flags: 	   []cli.Flag{pathFlag},
+			UsageText: "ol kill [-p --path=NAME] [-a --async]",
+			Flags: 	   []cli.Flag{pathFlag, cli.BoolFlag{
+				Name:  "async, a",
+				Usage: "Async kill ol worker",
+			}},
 			Action:    kill,
 		},
 		cli.Command{
 			Name:      "clean",
 			Usage:     "Clean the OL directory.",
-			UsageText: "ol clean [--path=NAME]",
+			UsageText: "ol clean [-p --path=NAME]",
 			Flags: 	   []cli.Flag{pathFlag},
 			Action:    clean,
 		},
