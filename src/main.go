@@ -44,7 +44,7 @@ func initOLDir(olPath string, noramdisk bool) (err error) {
 	if !noramdisk {
 		// TODO: How to pass the arguments?
 		// mount -t tmpfs -o size=512m tmpfs /mnt/ramdisk
-		cmd := exec.Command("mount", "-t", "tmpfs", "-o", "size=16G", "tmpfs", olPath)
+		cmd := exec.Command("mount", "-t", "tmpfs", "-o", "size=32G", "tmpfs", olPath)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("Failed to mount ramdisk. %s\n", err.Error())
 		}
@@ -278,7 +278,7 @@ func worker(ctx *cli.Context) error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	if detach {
 		// stdout+stderr both go to log
-		logPath := filepath.Join(olPath, common.Conf.Worker_dir, "worker.out")
+		logPath := filepath.Join(common.Conf.Worker_dir, "worker.out")
 		f, err := os.Create(logPath)
 		if err != nil {
 			return err
