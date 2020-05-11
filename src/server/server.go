@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"path"
 	"strconv"
 	"syscall"
 
@@ -77,11 +78,19 @@ func Main() (err error) {
 	}
 
 	// start with a fresh env
-	if err := os.RemoveAll(common.Conf.Worker_dir); err != nil {
-		return err
-	} else if err := os.MkdirAll(common.Conf.Worker_dir, 0700); err != nil {
-		return err
+	if dir, err := ioutil.ReadDir(common.Conf.Worker_dir); err == nil{
+		for _, d := range dir {
+			// os.RemoveAll(path.Join([]string{"tmp", d.Name()}...))
+			os.RemoveAll(path.Join([]string{common.Conf.Worker_dir, d.Name()}...))
+		}
+	}else {
+		if err := os.RemoveAll(common.Conf.Worker_dir); err != nil {
+			return err
+		} else if err := os.MkdirAll(common.Conf.Worker_dir, 0700); err != nil {
+			return err
+		}
 	}
+	
 
 	log.Printf("save PID %d to file %s", os.Getpid(), pidPath)
 	if err := ioutil.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {

@@ -124,6 +124,7 @@ func newOL(ctx *cli.Context) error {
 	}
 
 	noramdisk := ctx.Bool("noramdisk")
+	// noramdisk = true
 	return initOLDir(olPath, noramdisk)
 }
 
@@ -278,7 +279,13 @@ func worker(ctx *cli.Context) error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	if detach {
 		// stdout+stderr both go to log
-		logPath := filepath.Join(common.Conf.Worker_dir, "worker.out")
+		overwriteConfigSuffix := ctx.String("overwriteconfigsuffix")
+		logPath := filepath.Join(olPath, "worker.out")
+		if overwriteConfigSuffix != ""{
+			logPath = filepath.Join(olPath, overwriteConfigSuffix + ".out")
+		}
+		
+		// logPath := filepath.Join(common.Conf.Worker_dir, "worker.out")
 		f, err := os.Create(logPath)
 		if err != nil {
 			return err
