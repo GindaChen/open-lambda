@@ -278,7 +278,7 @@ func worker(ctx *cli.Context) error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	if detach {
 		// stdout+stderr both go to log
-		logPath := filepath.Join(olPath, common.Conf.Worker_dir, "worker.out")
+		logPath := filepath.Join(common.Conf.Worker_dir, "worker.out")
 		f, err := os.Create(logPath)
 		if err != nil {
 			return err
