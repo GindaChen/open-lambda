@@ -44,7 +44,7 @@ func initOLDir(olPath string, noramdisk bool) (err error) {
 	if !noramdisk {
 		// TODO: How to pass the arguments?
 		// mount -t tmpfs -o size=512m tmpfs /mnt/ramdisk
-		cmd := exec.Command("mount", "-t", "tmpfs", "-o", "size=16G", "tmpfs", olPath)
+		cmd := exec.Command("mount", "-t", "tmpfs", "-o", "size=32G", "tmpfs", olPath)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("Failed to mount ramdisk. %s\n", err.Error())
 		}
