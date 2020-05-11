@@ -255,7 +255,12 @@ func worker(ctx *cli.Context) error {
 	confPath := filepath.Join(olPath, "config.json")
 	overrides := ctx.String("options")
 	if overrides != "" {
-		overridesPath := confPath + ".overrides"
+		overwriteConfigSuffix := ctx.String("overwriteconfigsuffix")
+		overridesPath := confPath
+		if overwriteConfigSuffix != "" {
+			overridesPath = overridesPath + "." + overwriteConfigSuffix
+		}
+		overridesPath = overridesPath + ".overrides.json"
 		err = overrideOpts(confPath, overridesPath, overrides)
 		if err != nil {
 			return err
@@ -273,7 +278,7 @@ func worker(ctx *cli.Context) error {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	if detach {
 		// stdout+stderr both go to log
-		logPath := filepath.Join(olPath, "worker.out")
+		logPath := filepath.Join(olPath, common.Conf.Worker_dir, "worker.out")
 		f, err := os.Create(logPath)
 		if err != nil {
 			return err
@@ -360,21 +365,28 @@ func worker(ctx *cli.Context) error {
 
 // kill corresponds to the "kill" command of the admin tool.
 func kill(ctx *cli.Context) error {
-	olPath, err := getOlPath(ctx)
-	if err != nil {
-		return err
+
+	pidstr := ctx.String("pid")
+
+	if pidstr == "" {
+		olPath, err := getOlPath(ctx)
+		if err != nil {
+			return err
+		}
+		
+		// TODO: This is not necessarily true when config is override.
+		// locate worker.pid, use it to get worker's PID
+		configPath := filepath.Join(olPath, "config.json")
+		if err := common.LoadConf(configPath); err != nil {
+			return err
+		}
+		data, err := ioutil.ReadFile(filepath.Join(common.Conf.Worker_dir, "worker.pid"))
+		if err != nil {
+			return err
+		}
+		pidstr = string(data)
 	}
 
-	// locate worker.pid, use it to get worker's PID
-	configPath := filepath.Join(olPath, "config.json")
-	if err := common.LoadConf(configPath); err != nil {
-		return err
-	}
-	data, err := ioutil.ReadFile(filepath.Join(common.Conf.Worker_dir, "worker.pid"))
-	if err != nil {
-		return err
-	}
-	pidstr := string(data)
 	pid, err := strconv.Atoi(pidstr)
 	if err != nil {
 		return err
@@ -386,6 +398,7 @@ func kill(ctx *cli.Context) error {
 		log.Printf("%s\n", err.Error())
 		log.Printf("Failed to find worker process with PID %d.  May require manual cleanup.\n", pid)
 	}
+
 	if err := p.Signal(syscall.SIGINT); err != nil {
 		log.Printf("%s\n", err.Error())
 		log.Printf("Failed to kill process with PID %d.  May require manual cleanup.\n", pid)
@@ -491,10 +504,18 @@ OPTIONS:
 		cli.Command{
 			Name:        "worker",
 			Usage:       "Start one OL server",
-			UsageText:   "ol worker [-p --path=NAME] [-d --detach] [-n --noramdisk]",
+			UsageText:   "ol worker [-p --path=NAME] [-d --detach] [-n --noramdisk] [-o --overwriteconfigsuffix=SUFFIX]",
 			Description: "Start a lambda server.",
 			Flags: []cli.Flag{
 				pathFlag,
+				// cli.StringFlag{
+				// 	Name:  "config, c",
+				// 	Usage: "config (JSON) path for OL environment",
+				// },
+				cli.StringFlag{
+					Name:  "overwriteconfigsuffix, s",
+					Usage: "config (JSON) path for OL environment",
+				},
 				cli.StringFlag{
 					Name:  "options, o",
 					Usage: "Override options in config.json: -o opt1=val1,opt2=val2,opt3.subopt31=val3. See config.json for more detail.",
@@ -522,10 +543,13 @@ OPTIONS:
 		cli.Command{
 			Name:      "kill",
 			Usage:     "Kill containers and processes in a cluster",
-			UsageText: "ol kill [-p --path=NAME] [-a --async]",
+			UsageText: "ol kill [-p --path=NAME] [-a --async] [-d --pid=PID]",
 			Flags: 	   []cli.Flag{pathFlag, cli.BoolFlag{
 				Name:  "async, a",
 				Usage: "Async kill ol worker",
+			},cli.StringFlag{
+				Name:  "pid, d",
+				Usage: "Worker pid",
 			}},
 			Action:    kill,
 		},
