@@ -172,36 +172,52 @@ func (mgr *LambdaMgr) Debug() string {
 func (mgr *LambdaMgr) Cleanup() {
 	mgr.mapMutex.Lock() // don't unlock, because this shouldn't be used anymore
 
+	t := common.T0("Cleanup()")
+
 	// HandlerPuller+PackagePuller requires no cleanup
 
 	// 1. cleanup handler Sandboxes
 	// 2. cleanup Zygote Sandboxes (after the handlers, which depend on the Zygotes)
 	// 3. cleanup SandboxPool underlying both of above
+	t0 := common.T0("Cleanup()/functions")
 	for _, f := range mgr.lfuncMap {
 		log.Printf("Kill function: %s", f.name)
 		f.Kill()
 	}
+	t0.T1()
 
+	t0 = common.T0("Cleanup()/import-cache")
 	if mgr.ImportCache != nil {
 		mgr.ImportCache.Cleanup()
 	}
+	t0.T1()
 
+	t0 = common.T0("Cleanup()/sandbox")
 	if mgr.sbPool != nil {
 		mgr.sbPool.Cleanup() // assumes all Sandboxes are gone
 	}
+	t0.T1()
 
 	// cleanup DepTracer
+	t0 = common.T0("Cleanup()/dep-tracer")
 	if mgr.DepTracer != nil {
 		mgr.DepTracer.Cleanup()
 	}
+	t0.T1()
 
+	t0 = common.T0("Cleanup()/code-dir")
 	if mgr.codeDirs != nil {
 		mgr.codeDirs.Cleanup()
 	}
+	t0.T1()
 
+	t0 = common.T0("Cleanup()/scratch-dir")
 	if mgr.scratchDirs != nil {
 		mgr.scratchDirs.Cleanup()
 	}
+	t0.T1()
+
+	t.T1()
 }
 
 func (f *LambdaFunc) Invoke(w http.ResponseWriter, r *http.Request) {

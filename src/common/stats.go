@@ -107,7 +107,7 @@ func T0(name string) *Latency {
 }
 
 // measure latency to end time, and record it
-func (l *Latency) T1() {
+func (l *Latency) T1() int64 {
 	l.Milliseconds = int64(time.Now().Sub(l.t0)) / 1000000
 	if l.Milliseconds < 0 {
 		panic("negative latency")
@@ -120,6 +120,7 @@ func (l *Latency) T1() {
 		panic("double counted stat for " + l.name)
 	}
 	l.t0 = zero
+	return l.Milliseconds
 }
 
 // start measuring a sub latency
